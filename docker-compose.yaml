@@ -6,6 +6,7 @@ services:
     build: 
       context: ./
       dockerfile: Dockerfile
-    env:
+    environment:
       - SSAFUM_apiID=${SSAFUM_apiID}
       - SSAFUM_apiHASH=${SSAFUM_apiHASH}
+      - SSAFUM_phone=${SSAFUM_phone}
