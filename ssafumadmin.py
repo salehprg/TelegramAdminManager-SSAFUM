@@ -20,18 +20,19 @@ from telethon.tl.types import (
     PeerChat,
 )
 
-api_id = os.environ["SSAFUM_apiID"]
-api_hash = os.environ["SSAFUM_apiHASH"]
+api_id = os.environ.get("SSAFUM_apiID" , "")
+api_hash = os.environ.get("SSAFUM_apiHASH", "")
 client = TelegramClient('main', api_id, api_hash)
+channel_forwards = "ssafum_test"
 
 
 channels = []  # (channel id, channel link, channel title)
 main_channel = {
-    'id': 1005121326,
+    'id': 2010895052,
     'title': 'انجمن های علمی فردوسی مشهد',
 }
 main_group = {
-    'id': 1751972489,
+    'id': 2082842980,
     'title': 'SSA FUM Admins',
 }
 keywords = []  # keywords: if the post include added keywords, won't be sent to the admins group
@@ -54,14 +55,14 @@ async def commands(event):
         # Admins can just use these commands(events from SSA FUM Admins)
         if chat.id == main_group['id']:
             # add channels: join the given channels and send there post for admins
-            if re.findall(r'(?i)add[ ]*channel[s]?$', event.raw_text):
+            if re.findall(r'(?i)^/add_channel', event.raw_text):
                 if len(strs) == 1:
                     await event.reply('لیست کانال ها برای افزودن خالی است🙂')
                 else:
                     tmp = await event.reply('⏳در حال بررسی کانال ها ...')
                     res = ''
                     async with client.action(chat, 'typing'):
-                        for i, item in zip(range(len(strs)), strs[:len(strs) - 1]):
+                        for i, item in zip(range(len(strs)), strs[1:]):
                             if item[0] == '@':
                                 item = item[1:]
                             try:
@@ -75,11 +76,11 @@ async def commands(event):
                             except ValueError:
                                 res += '❌عضویت کانال {}ام: ناموفق(کانالی با این نشانی برای عضویت وجود ندارد)\n'.format(
                                     i+1)
-                            except TypeError:
+                            except :
                                 res += '❌عضویت کانال {}ام: ناموفق(برای ورودی فقط آدرس کانال را وارد کنید)\n'.format(i+1)
                 await client.delete_messages(chat, tmp)
                 await client.send_message(chat, res, reply_to=event.message)
-            elif re.findall(r'(?i)remove[ ]*channel[s]?$', event.raw_text):
+            elif re.findall(r'(?i)^/remove_channel', event.raw_text):
                 if len(strs) == 1:
                     await event.reply('لیست کانال ها برای ترک کردن خالی است🙂')
                 else:
@@ -98,15 +99,15 @@ async def commands(event):
                         except TypeError:
                             res += '❌ترک کانال {}ام: ناموفق(برای ورودی فقط آدرس کانال را وارد کنید)\n'.format(i + 1)
                 await event.reply(res)
-            elif re.findall(r'(?i)add[ ]*keyword[s]$', event.raw_text):
+            elif re.findall(r'(?i)^/add_keywords', event.raw_text):
                 for kw in strs[:len(strs) - 1]:
                     keywords.append(kw)
                 await event.reply('✅کليد واژه های مورد نظر با موفقیت اضافه شد')
-            elif re.findall(r'(?i)remove[ ]*keywords$', event.raw_text):
+            elif re.findall(r'(?i)^/remove_keyword', event.raw_text):
                 for kw in strs[:len(strs) - 1]:
                     keywords.remove(kw)
                 await event.reply('✅کليد واژه های مورد نظر با موفقیت حذف شد')
-            elif re.findall(r'(?i).*channel[s]?[ ]*list$', event.raw_text):
+            elif re.findall(r'(?i)^/channel_list', event.raw_text):
                 lc = len(channels)
                 if lc == 0:
                     await event.reply('لیست کانال های مورد بررسی خالی است')
@@ -124,7 +125,7 @@ async def commands(event):
                         await event.reply('تلاش ناموفق، دوباره امتحان کنید')
                     except telethon.errors.FloodError:
                         await event.reply('تلاش ناموفق، دوباره امتحان کنید')
-            elif re.findall(r'(?i).*keyword[s]?[ ]*list$', event.raw_text):
+            elif re.findall(r'(?i)^/keywords_list', event.raw_text):
                 if len(keywords) == 0:
                     await event.reply('لیست کلید واژه ها خالی است')
                 else:
@@ -133,6 +134,13 @@ async def commands(event):
                             await event.reply(' 🟢\n'.join([str(x) for x in keywords]) + ' 🟢')
                     except telethon.errors.FloodError:
                         await event.reply('تلاش ناموفق، دوباره امتحان کنید')
+                        
+            elif re.findall(r'(?i)^/set_mainchannel', event.raw_text):
+                if len(strs) > 1:
+                    channel = await client.get_entity(strs[1])
+                    main_channel['id'] = channel.id
+                    channel_forwards = channel.username
+                
     except ChatIdInvalidError:
         pass
     except AttributeError:
@@ -166,7 +174,7 @@ async def post_analyser(event):
             if i in event.raw_text:
                 keyflag = False
                 break
-        if not re.findall(r'(?i)ssafum', event.raw_text):
+        if not re.findall(r'(?i){}'.format(re.escape(channel_forwards)), event.raw_text):
             keyflag = False
         if ch.id in [item[0] for item in channels] and keyflag:
             await client.forward_messages(main_group['id'], event.message, as_album=True)
@@ -177,10 +185,10 @@ async def post_analyser(event):
 @client.on(events.NewMessage)
 async def post_archives(event):
     chat = await client.get_entity(PeerChat((await event.message.get_chat())).chat_id)
-    if re.findall(r'(?i).*accept$', event.raw_text) and chat.id == main_group['id']:
+    if re.findall(r'(?i)^/accept', event.raw_text) and chat.id == main_group['id']:
         # get the date of last message, if now - date < 10min --> send with schedule
         lastmsgs = []
-        channel = await client.get_entity('ssafum')
+        channel = await client.get_entity(channel_forwards)
         async for item in client.iter_messages(main_channel['id'], scheduled=True):
             lastmsgs.append(item)
             break
@@ -206,7 +214,7 @@ async def post_archives(event):
             pass
         except MessageIdInvalidError:
             pass
-    elif re.findall(r'(?i).*ignore$', event.raw_text) and chat.id == main_group['id']:
+    elif re.findall(r'(?i)^/ignore', event.raw_text) and chat.id == main_group['id']:
         try:
             msg = await client.get_messages(chat, ids=event.reply_to_msg_id)
             await event.reply('عدم تایید 🛑 حذف پست انجام شد🗑')
@@ -218,5 +226,6 @@ async def post_archives(event):
             pass
 
 
-client.start()
+client.start(phone=os.environ.get("SSAFUM_phone" , ""))
+
 client.run_until_disconnected()

@@ -1,7 +1,6 @@
 FROM python:latest
-COPY ssafumadmin.py .
-COPY main.session .
-COPY requirements.txt .
+WORKDIR /App
+COPY . ./
 RUN pip3 install -r requirements.txt
 ENTRYPOINT [ "python3" ]
 CMD [ "ssafumadmin.py" ]

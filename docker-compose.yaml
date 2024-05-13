@@ -1,0 +1,11 @@
+services:
+  ssafum_bot:
+    restart: always
+    volumes:
+      - ./main.session:/main.session:ro
+    build: 
+      context: ./
+      dockerfile: Dockerfile
+    env:
+      - SSAFUM_apiID=${SSAFUM_apiID}
+      - SSAFUM_apiHASH=${SSAFUM_apiHASH}
