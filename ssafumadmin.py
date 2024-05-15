@@ -20,13 +20,15 @@ from telethon.tl.types import (
     PeerChat,
 )
 
-api_id = os.environ.get("SSAFUM_apiID" , "")
-api_hash = os.environ.get("SSAFUM_apiHASH", "")
+api_id = os.environ.get("SSAFUM_apiID" , "17067170")
+api_hash = os.environ.get("SSAFUM_apiHASH", "3c4474c248c7e0e566e702150f20321b")
+
 client = TelegramClient('main', api_id, api_hash)
-channel_forwards = "ssafum_test"
 
+channel_forwards = "ssafum"
 
-channels = []  # (channel id, channel link, channel title)
+channels = []
+    
 main_channel = {
     'id': 2010895052,
     'title': 'انجمن های علمی فردوسی مشهد',
@@ -37,6 +39,37 @@ main_group = {
 }
 keywords = []  # keywords: if the post include added keywords, won't be sent to the admins group
 
+filename='channel_ids.txt'
+
+def read_channel_ids():
+    """Read Telegram channel IDs from a file and store them in an array."""
+    channel_ids = []
+    try:
+        with open(filename, 'r') as file:
+            for line in file:
+                channel_ids.append(line.strip())
+    except FileNotFoundError:
+        pass  # File doesn't exist yet, so return an empty array
+    return channel_ids
+
+def save_channel_id(channel_id, new = False):
+    """Save Telegram channel ID to a file."""
+    if new:
+        with open(filename, 'w'):
+            pass
+        
+    with open(filename, 'a+') as file:
+        file.write(str(channel_id) + '\n')
+
+def remove_channel_id(channel_id):
+    """Remove Telegram channel ID from a file."""
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+    with open(filename, 'w') as file:
+        for line in lines:
+            if line.strip() != str(channel_id):
+                file.write(line)
+                
 
 @client.on(events.NewMessage)
 async def my_event_handler(event):
@@ -49,6 +82,8 @@ async def my_event_handler(event):
 
 @client.on(events.NewMessage)
 async def commands(event):
+    global channel_forwards
+    
     strs = event.raw_text.split('\n')
     try:
         chat = await client.get_entity(PeerChat((await event.message.get_chat())).chat_id)
@@ -69,10 +104,8 @@ async def commands(event):
                                 channel = await client.get_entity(item)
                                 if await client(JoinChannelRequest(channel)):
                                     res += '✅عضویت کانال {}({}ام): موفق'.format(channel.title, i + 1) + '\n'
-                                if re.findall(r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', item):
-                                    channels.append((channel.id, item, channel.title))
-                                else:
-                                    channels.append((channel.id, 'https://t.me/' + item, channel.title))
+                                    
+                                save_channel_id(channel.id)
                             except ValueError:
                                 res += '❌عضویت کانال {}ام: ناموفق(کانالی با این نشانی برای عضویت وجود ندارد)\n'.format(
                                     i+1)
@@ -90,15 +123,16 @@ async def commands(event):
                             channel = await client.get_entity(item)
                             if await client(LeaveChannelRequest(channel)):
                                 res += '✅ترک کانال {}({}ام): موفق'.format(channel.title, i + 1) + '\n'
-                            if re.findall(r'(?:(?:https?|ftp):\/\/)?[\w/\-?=%.]+\.[\w/\-&?=%.]+', item):
-                                channels.remove((channel.id, item, channel.title))
-                            else:
-                                channels.remove((channel.id, 'https://t.me/' + item, channel.title))
+                                
+                            remove_channel_id(channel.id)
+                            
                         except ValueError:
                             res += '❌ترک کانال {}ام: ناموفق(کانالی با این نشانی برای ترک وجود ندارد)\n'.format(i + 1)
                         except TypeError:
                             res += '❌ترک کانال {}ام: ناموفق(برای ورودی فقط آدرس کانال را وارد کنید)\n'.format(i + 1)
+                            
                 await event.reply(res)
+                
             elif re.findall(r'(?i)^/add_keywords', event.raw_text):
                 for kw in strs[:len(strs) - 1]:
                     keywords.append(kw)
@@ -140,6 +174,8 @@ async def commands(event):
                     channel = await client.get_entity(strs[1])
                     main_channel['id'] = channel.id
                     channel_forwards = channel.username
+                    
+                    await event.reply(f'آیدی {channel_forwards} با موفقیت تنظیم شد')
                 
     except ChatIdInvalidError:
         pass
@@ -166,6 +202,7 @@ async def new_edited_post(event):
 
 # check if post has not contain a given keywords and from channel that have been added
 async def post_analyser(event):
+    global channel_forwards
     try:
         ch = PeerChannel((await event.message.get_sender()).id)
         ch = await client.get_entity(ch)
@@ -176,7 +213,7 @@ async def post_analyser(event):
                 break
         if not re.findall(r'(?i){}'.format(re.escape(channel_forwards)), event.raw_text):
             keyflag = False
-        if ch.id in [item[0] for item in channels] and keyflag:
+        if f'{ch.id}' in channels and keyflag:
             await client.forward_messages(main_group['id'], event.message, as_album=True)
     except ValueError:
         pass
@@ -184,6 +221,8 @@ async def post_analyser(event):
 
 @client.on(events.NewMessage)
 async def post_archives(event):
+    global channel_forwards
+    
     chat = await client.get_entity(PeerChat((await event.message.get_chat())).chat_id)
     if re.findall(r'(?i)^/accept', event.raw_text) and chat.id == main_group['id']:
         # get the date of last message, if now - date < 10min --> send with schedule
@@ -225,7 +264,29 @@ async def post_archives(event):
         except MessageIdInvalidError:
             pass
 
+async def getChannels():
+    global channel_forwards
+    
+    dialogs = client.iter_dialogs()
+    subscribed_channels = []
 
-client.start(phone=os.environ.get("SSAFUM_phone" , ""))
+    async for dialog in dialogs:
+        if dialog.is_channel and not dialog.is_group:
+            subscribed_channels.append((dialog.entity.id, dialog.entity.title,dialog.entity.username))
 
+    print("Subscribed Channels:")
+    for channel_id, channel_title,channel_uname in subscribed_channels:
+        print(f"Channel ID: {channel_id}, Title: {channel_title}")
+        if(channel_uname == "ssafum"):
+            channel_forwards = channel_uname
+            main_channel['id'] = channel_id
+            
+        save_channel_id(channel_id)
+     
+
+client.start(phone=os.environ.get("SSAFUM_phone" , "989939996761"))
+
+client.loop.run_until_complete(getChannels())
+channels = read_channel_ids()
+    
 client.run_until_disconnected()

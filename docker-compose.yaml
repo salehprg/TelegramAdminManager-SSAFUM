@@ -3,6 +3,7 @@ services:
     restart: always
     volumes:
       - ./main.session:/main.session:ro
+      - ./channel_ids.txt:/channel_ids.txt:ro
     build: 
       context: ./
       dockerfile: Dockerfile
