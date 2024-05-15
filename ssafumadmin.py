@@ -42,24 +42,21 @@ keywords = []  # keywords: if the post include added keywords, won't be sent to 
 filename='channel_ids.txt'
 
 def read_channel_ids():
-    """Read Telegram channel IDs from a file and store them in an array."""
-    channel_ids = []
+    """Read Telegram channel IDs and names from a file and store them in a list of tuples."""
+    channel_info = []
     try:
-        with open(filename, 'r') as file:
+        with open(filename, 'r', encoding='utf-8') as file:
             for line in file:
-                channel_ids.append(line.strip())
+                channel_id, channel_name = line.strip().split(',')
+                channel_info.append((channel_id, channel_name))
     except FileNotFoundError:
-        pass  # File doesn't exist yet, so return an empty array
-    return channel_ids
+        pass  # File doesn't exist yet, so return an empty list
+    return channel_info
 
-def save_channel_id(channel_id, new = False):
+def save_channel_id(channel_id, channel_name, new = False):
     """Save Telegram channel ID to a file."""
-    if new:
-        with open(filename, 'w'):
-            pass
-        
-    with open(filename, 'a+') as file:
-        file.write(str(channel_id) + '\n')
+    with open(filename, 'a+', encoding='utf-8') as file:
+        file.write(f"{channel_id},{channel_name}\n")
 
 def remove_channel_id(channel_id):
     """Remove Telegram channel ID from a file."""
@@ -70,6 +67,14 @@ def remove_channel_id(channel_id):
             if line.strip() != str(channel_id):
                 file.write(line)
                 
+                
+def channel_id_exists(channel_id):
+    """Check if a channel ID exists in the list of channel info."""
+    for saved_channel_id, _ in channels:
+        if saved_channel_id == f'{channel_id}':
+            return True
+    return False
+
 
 @client.on(events.NewMessage)
 async def my_event_handler(event):
@@ -148,17 +153,15 @@ async def commands(event):
                 else:
                     try:
                         if lc <= 30:
-                            await event.reply(' 🟢\n'.join([str(x[1]) + ': ' + str(x[2]) for x in channels]) + ' 🟢')
+                            await event.reply(' 🟢\n'.join([f"{x[0]} : {x[1]}" for x in channels]) + ' 🟢')
                         else:
                             for i in range(lc//30 + 1):
                                 await event.reply(
-                                    ' 🟢\n'.join([str(x[1]) + ': ' + str(x[2]) for x in
+                                    ' 🟢\n'.join([f"{x[0]} : {x[1]}" for x in
                                                   channels[30*i:30*(i+1) if 30*(i+1) <= lc else lc]])+' 🟢'
                                 )
-                    except telethon.errors.rpcerrorlist.FloodWaitError:
-                        await event.reply('تلاش ناموفق، دوباره امتحان کنید')
-                    except telethon.errors.FloodError:
-                        await event.reply('تلاش ناموفق، دوباره امتحان کنید')
+                    except :
+                        pass
             elif re.findall(r'(?i)^/keywords_list', event.raw_text):
                 if len(keywords) == 0:
                     await event.reply('لیست کلید واژه ها خالی است')
@@ -203,6 +206,7 @@ async def new_edited_post(event):
 # check if post has not contain a given keywords and from channel that have been added
 async def post_analyser(event):
     global channel_forwards
+    
     try:
         ch = PeerChannel((await event.message.get_sender()).id)
         ch = await client.get_entity(ch)
@@ -213,7 +217,7 @@ async def post_analyser(event):
                 break
         if not re.findall(r'(?i){}'.format(re.escape(channel_forwards)), event.raw_text):
             keyflag = False
-        if f'{ch.id}' in channels and keyflag:
+        if channel_id_exists(ch.id) and keyflag:
             await client.forward_messages(main_group['id'], event.message, as_album=True)
     except ValueError:
         pass
@@ -281,10 +285,14 @@ async def getChannels():
             channel_forwards = channel_uname
             main_channel['id'] = channel_id
             
-        save_channel_id(channel_id)
+        save_channel_id(channel_id,channel_title)
      
 
 client.start(phone=os.environ.get("SSAFUM_phone" , "989939996761"))
+
+with open(filename, 'w', encoding='utf-8') as file:
+    file.write("")
+    pass
 
 client.loop.run_until_complete(getChannels())
 channels = read_channel_ids()
